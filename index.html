@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Drawing Viewer</title>
+    <style>
+      :root {
+        --primary-color: #4a6de5;
+        --secondary-color: #f8f9fa;
+        --border-color: #dee2e6;
+        --text-color: #212529;
+        --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background-color: #f5f7fa;
+        color: var(--text-color);
+        padding: 20px;
+        line-height: 1.6;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: white;
+        border-radius: 8px;
+        box-shadow: var(--shadow);
+      }
+
+      h2 {
+        color: var(--primary-color);
+        margin-bottom: 20px;
+        border-bottom: 2px solid var(--primary-color);
+        padding-bottom: 10px;
+      }
+
+      .upload-area {
+        border: 2px dashed var(--border-color);
+        border-radius: 6px;
+        padding: 30px;
+        text-align: center;
+        margin-bottom: 20px;
+        background-color: var(--secondary-color);
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+
+      .upload-area:hover {
+        border-color: var(--primary-color);
+        background-color: rgba(74, 109, 229, 0.05);
+      }
+
+      .upload-area p {
+        margin: 10px 0;
+        color: #6c757d;
+      }
+
+      .upload-area.drag-over {
+        border-color: var(--primary-color);
+        background-color: rgba(74, 109, 229, 0.1);
+      }
+
+      .file-input {
+        display: none;
+      }
+
+      .upload-btn {
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 600;
+        transition: background-color 0.3s;
+      }
+
+      .upload-btn:hover {
+        background-color: #3a5bc5;
+      }
+
+      .controls {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+
+      .btn {
+        background-color: white;
+        border: 1px solid var(--border-color);
+        padding: 6px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 14px;
+        transition: all 0.2s;
+      }
+
+      .btn:hover {
+        background-color: var(--secondary-color);
+        border-color: #b0b8c4;
+      }
+
+      .btn-primary {
+        background-color: var(--primary-color);
+        color: white;
+      }
+
+      .btn-primary:hover {
+        background-color: #3a5bc5;
+        color: white;
+      }
+
+      .drawing-container {
+        position: relative;
+        overflow: auto;
+        margin: 20px 0;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        max-height: 70vh;
+      }
+
+      #drawingCanvas {
+        display: grid;
+        margin: 0 auto;
+        transition: transform 0.3s ease;
+        transform-origin: top left;
+      }
+
+      .pixel {
+        width: 20px;
+        height: 20px;
+        box-sizing: border-box;
+        transition: transform 0.2s;
+      }
+
+      .show-grid .pixel {
+        border: 1px solid #e9ecef;
+      }
+
+      .pixel:hover {
+        transform: scale(1.1);
+        z-index: 10;
+        box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+      }
+
+      .status-bar {
+        display: flex;
+        justify-content: space-between;
+        padding: 10px;
+        background-color: var(--secondary-color);
+        border-radius: 4px;
+        font-size: 14px;
+        color: #6c757d;
+      }
+
+      .loading {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(255, 255, 255, 0.8);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 100;
+      }
+
+      .spinner {
+        border: 4px solid rgba(0, 0, 0, 0.1);
+        border-radius: 50%;
+        border-top: 4px solid var(--primary-color);
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+      }
+
+      .color-info {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .color-preview {
+        width: 20px;
+        height: 20px;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      @media (max-width: 768px) {
+        .controls {
+          flex-direction: column;
+          align-items: stretch;
+        }
+      }
+
+      .hidden {
+        display: none;
+      }
+
+      .error-message {
+        background-color: #f8d7da;
+        color: #721c24;
+        padding: 10px;
+        border-radius: 4px;
+        margin-bottom: 15px;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h2>Drawing Viewer</h2>
+
+      <div id="error-container" class="error-message hidden"></div>
+
+      <div class="upload-area" id="dropArea">
+        <p>Drag and drop a JSON drawing file here</p>
+        <p>OR</p>
+        <input type="file" id="fileInput" class="file-input" accept=".json" />
+        <button class="upload-btn" id="browseBtn">Browse Files</button>
+      </div>
+
+      <div class="controls hidden" id="controls">
+        <button class="btn" id="zoomInBtn">
+          <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+            <path
+              d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"
+            />
+          </svg>
+          Zoom In
+        </button>
+        <button class="btn" id="zoomOutBtn">
+          <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+            <path
+              d="M4 8a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7A.5.5 0 0 1 4 8z"
+            />
+          </svg>
+          Zoom Out
+        </button>
+        <button class="btn" id="resetBtn">
+          <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+            <path
+              d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"
+            />
+            <path
+              d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"
+            />
+          </svg>
+          Reset View
+        </button>
+        <button class="btn" id="toggleGridBtn">
+          <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+            <path
+              d="M1 2a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V2zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V2zM1 7a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V7zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V7zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V7z"
+            />
+          </svg>
+          Toggle Grid
+        </button>
+        <button class="btn btn-primary" id="exportBtn">
+          <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+            <path
+              d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"
+            />
+            <path
+              d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"
+            />
+          </svg>
+          Export as PNG
+        </button>
+      </div>
+
+      <div class="drawing-container hidden" id="drawingContainer">
+        <div id="loadingIndicator" class="loading hidden">
+          <div class="spinner"></div>
+        </div>
+        <div id="drawingCanvas"></div>
+      </div>
+
+      <div class="status-bar hidden" id="statusBar">
+        <div class="dimensions">
+          Size: <span id="dimensionsText">0 x 0</span>
+        </div>
+        <div class="color-info">
+          Selected:
+          <div class="color-preview" id="colorPreview"></div>
+          <span id="colorText">#FFFFFF</span>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // DOM Elements
+      const fileInput = document.getElementById("fileInput");
+      const dropArea = document.getElementById("dropArea");
+      const browseBtn = document.getElementById("browseBtn");
+      const drawingCanvas = document.getElementById("drawingCanvas");
+      const drawingContainer = document.getElementById("drawingContainer");
+      const zoomInBtn = document.getElementById("zoomInBtn");
+      const zoomOutBtn = document.getElementById("zoomOutBtn");
+      const resetBtn = document.getElementById("resetBtn");
+      const toggleGridBtn = document.getElementById("toggleGridBtn");
+      const statusBar = document.getElementById("statusBar");
+      const dimensionsText = document.getElementById("dimensionsText");
+      const colorPreview = document.getElementById("colorPreview");
+      const colorText = document.getElementById("colorText");
+      const loadingIndicator = document.getElementById("loadingIndicator");
+      const controls = document.getElementById("controls");
+      const exportBtn = document.getElementById("exportBtn");
+      const errorContainer = document.getElementById("error-container");
+
+      // Variables
+      let currentScale = 1;
+      let isPanning = false;
+      let startPoint = { x: 0, y: 0 };
+      let currentTranslate = { x: 0, y: 0 };
+      let showGrid = false;
+      let currentDrawingData = null;
+
+      // Event Listeners
+      browseBtn.addEventListener("click", () => fileInput.click());
+
+      fileInput.addEventListener("change", handleFileSelect);
+
+      dropArea.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        dropArea.classList.add("drag-over");
+      });
+
+      dropArea.addEventListener("dragleave", () => {
+        dropArea.classList.remove("drag-over");
+      });
+
+      dropArea.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dropArea.classList.remove("drag-over");
+
+        if (e.dataTransfer.files.length) {
+          fileInput.files = e.dataTransfer.files;
+          handleFileSelect({ target: fileInput });
+        }
+      });
+
+      zoomInBtn.addEventListener("click", () => {
+        currentScale += 0.2;
+        updateCanvasTransform();
+      });
+
+      zoomOutBtn.addEventListener("click", () => {
+        if (currentScale > 0.3) {
+          currentScale -= 0.2;
+          updateCanvasTransform();
+        }
+      });
+
+      resetBtn.addEventListener("click", () => {
+        currentScale = 1;
+        currentTranslate = { x: 0, y: 0 };
+        updateCanvasTransform();
+      });
+
+      toggleGridBtn.addEventListener("click", () => {
+        showGrid = !showGrid;
+        drawingCanvas.classList.toggle("show-grid");
+        toggleGridBtn.innerHTML = showGrid
+          ? '<svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M1 2a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V2zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V2zM1 7a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V7zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V7zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V7z"/></svg> Hide Grid'
+          : '<svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M1 2a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V2zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V2zM1 7a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V7zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V7zm5 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V7z"/></svg> Show Grid';
+      });
+
+      exportBtn.addEventListener("click", exportAsPNG);
+
+      // Mouse interactions for panning
+      drawingContainer.addEventListener("mousedown", (e) => {
+        if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
+          // Middle mouse or Shift+Left click
+          isPanning = true;
+          startPoint = {
+            x: e.clientX - currentTranslate.x,
+            y: e.clientY - currentTranslate.y,
+          };
+          drawingContainer.style.cursor = "grabbing";
+          e.preventDefault();
+        }
+      });
+
+      document.addEventListener("mousemove", (e) => {
+        if (isPanning) {
+          currentTranslate = {
+            x: e.clientX - startPoint.x,
+            y: e.clientY - startPoint.y,
+          };
+          updateCanvasTransform();
+          e.preventDefault();
+        }
+      });
+
+      document.addEventListener("mouseup", () => {
+        if (isPanning) {
+          isPanning = false;
+          drawingContainer.style.cursor = "default";
+        }
+      });
+
+      // Zoom with mouse wheel
+      drawingContainer.addEventListener("wheel", (e) => {
+        e.preventDefault();
+
+        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        const newScale = currentScale + delta;
+
+        if (newScale >= 0.3 && newScale <= 5) {
+          // Calculate mouse position relative to canvas
+          const rect = drawingCanvas.getBoundingClientRect();
+          const mouseX = e.clientX - rect.left;
+          const mouseY = e.clientY - rect.top;
+
+          // Calculate where the mouse point will be after scaling
+          const newMouseX = mouseX * (newScale / currentScale);
+          const newMouseY = mouseY * (newScale / currentScale);
+
+          // Adjust translation to keep the point under the mouse
+          currentTranslate.x += mouseX - newMouseX;
+          currentTranslate.y += mouseY - newMouseY;
+
+          currentScale = newScale;
+          updateCanvasTransform();
+        }
+      });
+
+      // Functions
+      function handleFileSelect(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        if (!file.name.toLowerCase().endsWith(".json")) {
+          showError("Please select a JSON file");
+          return;
+        }
+
+        showLoading(true);
+        clearError();
+
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          try {
+            const data = JSON.parse(e.target.result);
+            if (!isValidDrawingData(data)) {
+              throw new Error("Invalid drawing data format");
+            }
+
+            showDrawingInterface();
+            renderDrawing(data);
+            currentDrawingData = data;
+          } catch (error) {
+            showError("Invalid JSON format or drawing data structure");
+            console.error("Error parsing file:", error);
+          } finally {
+            showLoading(false);
+          }
+        };
+
+        reader.onerror = function () {
+          showError("Error reading the file");
+          showLoading(false);
+        };
+
+        reader.readAsText(file);
+      }
+
+      function isValidDrawingData(data) {
+        return (
+          data &&
+          typeof data.width === "number" &&
+          typeof data.height === "number" &&
+          Array.isArray(data.grid)
+        );
+      }
+
+      function renderDrawing({ width, height, grid }) {
+        drawingCanvas.innerHTML = "";
+        drawingCanvas.style.gridTemplateColumns = `repeat(${width}, 20px)`;
+        drawingCanvas.style.gridTemplateRows = `repeat(${height}, 20px)`;
+
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            const pixelData = grid[y] && grid[y][x];
+            const pixel = document.createElement("div");
+            pixel.className = "pixel";
+
+            const color = pixelData?.color || "white";
+            pixel.style.backgroundColor = color;
+
+            pixel.addEventListener("mouseover", () => {
+              colorPreview.style.backgroundColor = color;
+              colorText.textContent = color;
+            });
+
+            drawingCanvas.appendChild(pixel);
+          }
+        }
+
+        dimensionsText.textContent = `${width} x ${height}`;
+        resetView();
+      }
+
+      function updateCanvasTransform() {
+        drawingCanvas.style.transform = `translate(${currentTranslate.x}px, ${currentTranslate.y}px) scale(${currentScale})`;
+      }
+
+      function resetView() {
+        currentScale = 1;
+        currentTranslate = { x: 0, y: 0 };
+        updateCanvasTransform();
+      }
+
+      function showDrawingInterface() {
+        dropArea.classList.add("hidden");
+        drawingContainer.classList.remove("hidden");
+        controls.classList.remove("hidden");
+        statusBar.classList.remove("hidden");
+      }
+
+      function showLoading(isLoading) {
+        loadingIndicator.classList.toggle("hidden", !isLoading);
+      }
+
+      function showError(message) {
+        errorContainer.textContent = message;
+        errorContainer.classList.remove("hidden");
+      }
+
+      function clearError() {
+        errorContainer.textContent = "";
+        errorContainer.classList.add("hidden");
+      }
+
+      function exportAsPNG() {
+        if (!currentDrawingData) return;
+
+        showLoading(true);
+
+        // Create an off-screen canvas
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        const { width, height, grid } = currentDrawingData;
+
+        // Set canvas size (using a scale factor for better resolution)
+        const scale = 10; // Each pixel will be 10x10 px in the exported image
+        canvas.width = width * scale;
+        canvas.height = height * scale;
+
+        // Draw pixels
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            const pixelData = grid[y] && grid[y][x];
+            ctx.fillStyle = pixelData?.color || "white";
+            ctx.fillRect(x * scale, y * scale, scale, scale);
+
+            // Draw grid if enabled
+            if (showGrid) {
+              ctx.strokeStyle = "#e9ecef";
+              ctx.lineWidth = 1;
+              ctx.strokeRect(x * scale, y * scale, scale, scale);
+            }
+          }
+        }
+
+        // Convert to image and trigger download
+        canvas.toBlob((blob) => {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "drawing_export.png";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          showLoading(false);
+        });
+      }
+    </script>
+  </body>
+</html>
